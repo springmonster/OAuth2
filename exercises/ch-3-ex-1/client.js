@@ -48,15 +48,78 @@ app.get('/authorize', function(req, res){
 	/*
 	 * Send the user to the authorization server
 	 */
-	
+
+	access_token = null;
+	state = randomstring.generate();
+
+	var authorizeUrl = buildUrl(authServer.authorizationEndpoint, {
+		response_type: 'code',
+		client_id: client.client_id,
+		redirect_uri: client.redirect_uris[0],
+		state: state
+	});
+
+	console.log("redirect", authorizeUrl);
+	res.redirect(authorizeUrl);
 });
 
-app.get('/callback', function(req, res){
+app.get('/callback', function(req, res) {
 
 	/*
 	 * Parse the response from the authorization server and get a token
 	 */
-	
+
+	if (req.query.error) {
+		// it's an error response, act accordingly
+		res.render('error', {error: req.query.error});
+		return;
+	}
+
+	var resState = req.query.state;
+	if (resState != state) {
+		console.log('State DOES NOT MATCH: expected %s got %s', state, resState);
+		res.render('error', {error: 'State value did not match'});
+		return;
+	}
+
+	var code = req.query.code;
+
+	var form_data = qs.stringify({
+		grant_type: 'authorization_code',
+		code: code,
+		redirect_uri: client.redirect_uris[0]
+	});
+	var headers = {
+		'Content-Type': 'application/x-www-form-urlencoded',
+		'Authorization': 'Basic ' + encodeClientCredentials(client.client_id, client.client_secret)
+	};
+
+	var tokRes = request('POST', authServer.tokenEndpoint,
+		{
+			body: form_data,
+			headers: headers
+		}
+	);
+
+	console.log('Requesting access token for code %s', code);
+
+	if (tokRes.statusCode >= 200 && tokRes.statusCode < 300) {
+		var body = JSON.parse(tokRes.getBody());
+
+		access_token = body.access_token;
+		console.log('Got access token: %s', access_token);
+		if (body.refresh_token) {
+			refresh_token = body.refresh_token;
+			console.log('Got refresh token: %s', refresh_token);
+		}
+
+		scope = body.scope;
+		console.log('Got scope: %s', scope);
+
+		res.render('index', {access_token: access_token, scope: scope, refresh_token: undefined});
+	} else {
+		res.render('error', {error: 'Unable to fetch access token, server response: ' + tokRes.statusCode})
+	}
 });
 
 app.get('/fetch_resource', function(req, res) {
@@ -64,7 +127,31 @@ app.get('/fetch_resource', function(req, res) {
 	/*
 	 * Use the access token to call the resource server
 	 */
-	
+
+	if (!access_token) {
+		res.render('error', {error: 'Missing Access Token'});
+		return;
+	}
+
+	console.log('Making request with access token %s', access_token);
+
+	var headers = {
+		'Authorization': 'Bearer ' + access_token
+	};
+
+	var resource = request('POST', protectedResource,
+		{headers: headers}
+	);
+
+	if (resource.statusCode >= 200 && resource.statusCode < 300) {
+		var body = JSON.parse(resource.getBody());
+		res.render('data', {resource: body});
+
+	} else {
+		access_token = null;
+		res.render('error', {error: resource.statusCode});
+
+	}
 });
 
 var buildUrl = function(base, options, hash) {
@@ -79,7 +166,7 @@ var buildUrl = function(base, options, hash) {
 	if (hash) {
 		newUrl.hash = hash;
 	}
-	
+
 	return url.format(newUrl);
 };
 
@@ -94,4 +181,4 @@ var server = app.listen(9000, 'localhost', function () {
   var port = server.address().port;
   console.log('OAuth Client is listening at http://%s:%s', host, port);
 });
- 
+
