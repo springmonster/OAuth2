@@ -25,7 +25,7 @@ var resource = {
 var getAccessToken = function (req, res, next) {
     var inToken = null;
     var auth = req.headers['authorization'];
-    if (auth && auth.toLowerCase().indexOf('bearer') == 0) {
+    if (auth && auth.toLowerCase().indexOf('bearer') === 0) {
         inToken = auth.slice('bearer '.length);
     } else if (req.body && req.body.access_token) {
         inToken = req.body.access_token;
@@ -34,19 +34,19 @@ var getAccessToken = function (req, res, next) {
     }
 
     console.log('Incoming token: %s', inToken);
-    nosql.one(function (token) {
-        if (token.access_token == inToken) {
-            return token;
-        }
-    }, function (err, token) {
-        if (token) {
-            console.log("We found a matching token: %s", inToken);
-        } else {
-            console.log('No matching token was found.');
-        }
-        req.access_token = token;
-        next();
-        return;
+
+    nosql.one().make(function (builder) {
+        builder.where('access_token', inToken);
+        builder.callback(function (err, response) {
+            console.log(response);
+            if (response) {
+                console.log("We found a matching token: %s", inToken);
+            } else {
+                console.log('No matching token was found.');
+            }
+            req.access_token = response;
+            next();
+        })
     });
 };
 
@@ -71,14 +71,14 @@ var bobFavorites = {
 };
 
 app.get('/favorites', getAccessToken, requireAccessToken, function (req, res) {
-
-    /*
-     * Get different user information based on the information of who approved the token
-     */
-
-    var unknown = {user: 'Unknown', favorites: {movies: [], foods: [], music: []}};
-    res.json(unknown);
-
+    if (req.access_token.user === 'alice') {
+        res.json({user: 'Alice', favorites: aliceFavorites});
+    } else if (req.access_token.user === 'bob') {
+        res.json({user: 'Bob', favorites: bobFavorites});
+    } else {
+        var unknown = {user: 'Unknown', favorites: {movies: [], foods: [], music: []}};
+        res.json(unknown);
+    }
 });
 
 var server = app.listen(9002, 'localhost', function () {

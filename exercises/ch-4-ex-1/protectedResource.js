@@ -1,8 +1,15 @@
 var express = require("express");
+var url = require("url");
 var bodyParser = require('body-parser');
+var randomstring = require("randomstring");
 var cons = require('consolidate');
 var nosql = require('nosql').load('database.nosql');
+var qs = require("qs");
+var querystring = require('querystring');
+var request = require("sync-request");
 var __ = require('underscore');
+var base64url = require('base64url');
+var jose = require('jsrsasign');
 var cors = require('cors');
 
 var app = express();
@@ -23,23 +30,48 @@ var resource = {
 };
 
 var getAccessToken = function (req, res, next) {
-    /*
-     * Scan for an access token on the incoming request.
-     */
 
+    var inToken = null;
+    var auth = req.headers['authorization'];
+    // authorization方式获取令牌
+    if (auth && auth.toLowerCase().indexOf('bearer') == 0) {
+        inToken = auth.slice('bearer '.length);
+    } else if (req.body && req.body.access_token) {
+        // x-www-form-urlencoded方式获取令牌
+        // not in the header, check in the form body
+        inToken = req.body.access_token;
+    } else if (req.query && req.query.access_token) {
+        // 查询参数方式获取令牌
+        inToken = req.query.access_token
+    }
+
+    console.log('Incoming token: %s', inToken);
+    nosql.one(function (token) {
+        if (token.access_token == inToken) {
+            return token;
+        }
+    }, function (err, token) {
+        if (token) {
+            console.log("We found a matching token: %s", inToken);
+        } else {
+            console.log('No matching token was found.');
+        }
+        req.access_token = token;
+        next();
+
+    });
 };
 
 app.options('/resource', cors());
 
 
-/*
- * Add the getAccessToken function to this handler
- */
-app.post("/resource", cors(), function (req, res) {
+app.post("/resource", cors(), getAccessToken, function (req, res) {
 
-    /*
-     * Check to see if the access token was found or not
-     */
+    if (req.access_token) {
+        res.json(resource);
+    } else {
+        res.status(401).end();
+    }
 
 });
 
