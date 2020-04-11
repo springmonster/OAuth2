@@ -136,7 +136,6 @@ app.get('/fetch_resource', function (req, res) {
         access_token = null;
         if (refresh_token) {
             refreshAccessToken(req, res);
-
         } else {
             res.render('error', {error: resource.statusCode});
 

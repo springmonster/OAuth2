@@ -182,19 +182,19 @@ app.post("/token", function (req, res) {
         return;
     }
 
-    if (client.client_secret != clientSecret) {
+    if (client.client_secret !== clientSecret) {
         console.log('Mismatched client secret, expected %s got %s', client.client_secret, clientSecret);
         res.status(401).json({error: 'invalid_client'});
         return;
     }
 
-    if (req.body.grant_type == 'authorization_code') {
+    if (req.body.grant_type === 'authorization_code') {
 
         var code = codes[req.body.code];
 
         if (code) {
             delete codes[req.body.code]; // burn our code, it's been used
-            if (code.authorizationEndpointRequest.client_id == clientId) {
+            if (code.authorizationEndpointRequest.client_id === clientId) {
 
                 var access_token = randomstring.generate();
 
@@ -224,20 +224,20 @@ app.post("/token", function (req, res) {
             res.status(400).json({error: 'invalid_grant'});
 
         }
-    } else if (req.body.grant_type == 'refresh_token') {
+    } else if (req.body.grant_type === 'refresh_token') {
         nosql.find().make(function (filter) {
             filter.where('refresh_token', '=', req.body.refresh_token);
             filter.callback(function (err, tokens) {
-                if (tokens.length == 1) {
+                if (tokens.length === 1) {
                     var token = tokens[0];
-                    if (token.client_id != clientId) {
+                    if (token.client_id !== clientId) {
                         console.log('Invalid client using a refresh token, expected %s got %s', token.client_id, clientId);
                         nosql.remove(function (found) {
-                            return (found == token);
+                            return (found === token);
                         }, function () {
                         });
                         res.status(400).end();
-                        return
+                        return;
                     }
                     console.log("We found a matching refresh token: %s", req.body.refresh_token);
                     var access_token = randomstring.generate();
@@ -273,9 +273,9 @@ setTimeout(() => nosql.insert({
     scope: 'foo bar'
 }), 5000);
 
-var server = app.listen(9001, 'localhost', function () {
-    var host = server.address().address;
-    var port = server.address().port;
+const server = app.listen(9001, 'localhost', function () {
+    const host = server.address().address;
+    const port = server.address().port;
 
     console.log('OAuth Authorization Server is listening at http://%s:%s', host, port);
 });
