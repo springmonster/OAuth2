@@ -76,7 +76,7 @@ app.get("/callback", function (req, res) {
     }
 
     var resState = req.query.state;
-    if (resState == state) {
+    if (resState === state) {
         console.log('State value matches: expected %s got %s', state, resState);
     } else {
         console.log('State DOES NOT MATCH: expected %s got %s', state, resState);
@@ -156,11 +156,9 @@ var refreshAccessToken = function (req, res) {
 
         // try again
         res.render('index', {access_token: access_token, refresh_token: refresh_token, scope: scope});
-        return;
     } else {
         console.log('No refresh token, asking the user to get a new access token');
         res.render('index', {access_token: access_token, refresh_token: refresh_token, scope: scope});
-        return;
     }
 };
 
@@ -185,11 +183,9 @@ app.get('/fetch_resource', function (req, res) {
     if (resource.statusCode >= 200 && resource.statusCode < 300) {
         var body = JSON.parse(resource.getBody());
         res.render('data', {resource: body});
-        return;
     } else {
         access_token = null;
         res.render('error', {error: 'Server returned response code: ' + resource.statusCode});
-        return;
     }
 
 });

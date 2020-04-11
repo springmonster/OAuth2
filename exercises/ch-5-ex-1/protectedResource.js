@@ -25,7 +25,7 @@ var getAccessToken = function (req, res, next) {
     // check the auth header first
     var auth = req.headers['authorization'];
     var inToken = null;
-    if (auth && auth.toLowerCase().indexOf('bearer') == 0) {
+    if (auth && auth.toLowerCase().indexOf('bearer') === 0) {
         inToken = auth.slice('bearer '.length);
     } else if (req.body && req.body.access_token) {
         // not in the header, check in the form body
@@ -36,7 +36,7 @@ var getAccessToken = function (req, res, next) {
 
     console.log('Incoming token: %s', inToken);
     nosql.one(function (token) {
-        if (token.access_token == inToken) {
+        if (token.access_token === inToken) {
             return token;
         }
     }, function (err, token) {
@@ -47,7 +47,6 @@ var getAccessToken = function (req, res, next) {
         }
         req.access_token = token;
         next();
-        return;
     });
 };
 
@@ -77,4 +76,4 @@ var server = app.listen(9002, 'localhost', function () {
 
     console.log('OAuth Resource Server is listening at http://%s:%s', host, port);
 });
- 
+

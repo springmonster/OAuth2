@@ -55,11 +55,11 @@ app.get("/authorize", function (req, res) {
     if (!client) {
         console.log('Unknown client %s', req.query.client_id);
         res.render('error', {error: 'Unknown client'});
-        return;
+
     } else if (!__.contains(client.redirect_uris, req.query.redirect_uri)) {
         console.log('Mismatched redirect URI, expected %s got %s', client.redirect_uris, req.query.redirect_uri);
         res.render('error', {error: 'Invalid redirect URI'});
-        return;
+
     } else {
 
         var reqid = randomstring.generate(8);
@@ -67,7 +67,7 @@ app.get("/authorize", function (req, res) {
         requests[reqid] = req.query;
 
         res.render('approve', {client: client, reqid: reqid});
-        return;
+
     }
 
 });
@@ -97,14 +97,14 @@ app.post('/approve', function (req, res) {
                 state: query.state
             });
             res.redirect(urlParsed);
-            return;
+
         } else {
             // we got a response type we don't understand
             var urlParsed = buildUrl(query.redirect_uri, {
                 error: 'unsupported_response_type'
             });
             res.redirect(urlParsed);
-            return;
+
         }
     } else {
         // user denied access
@@ -112,7 +112,7 @@ app.post('/approve', function (req, res) {
             error: 'access_denied'
         });
         res.redirect(urlParsed);
-        return;
+
     }
 
 });
@@ -162,37 +162,62 @@ app.post("/token", function (req, res) {
             if (code.request.client_id == clientId) {
 
                 var access_token = randomstring.generate();
-                nosql.insert({access_token: access_token, client_id: clientId});
+                var refresh_token = randomstring.generate();
 
-                /*
-                 * Issue a refresh token along side the access token and save it to the database
-                 */
+                nosql.insert({access_token: access_token, client_id: clientId});
+                nosql.insert({refresh_token: refresh_token, client_id: clientId});
 
                 console.log('Issuing access token %s', access_token);
-                console.log('with scope %s', code.scope);
 
-                var token_response = {access_token: access_token, token_type: 'Bearer'};
+                var token_response = {access_token: access_token, token_type: 'Bearer', refresh_token: refresh_token};
 
                 res.status(200).json(token_response);
                 console.log('Issued tokens for code %s', req.body.code);
 
-                return;
+
             } else {
                 console.log('Client mismatch, expected %s got %s', code.request.client_id, clientId);
                 res.status(400).json({error: 'invalid_grant'});
-                return;
+
             }
+
 
         } else {
             console.log('Unknown code, %s', req.body.code);
             res.status(400).json({error: 'invalid_grant'});
-            return;
+
         }
+    } else if (req.body.grant_type == 'refresh_token') {
+        nosql.one(function (token) {
+            if (token.refresh_token == req.body.refresh_token) {
+                return token;
+            }
+        }, function (err, token) {
+            if (token) {
+                console.log("We found a matching refresh token: %s", req.body.refresh_token);
+                if (token.client_id != clientId) {
+                    nosql.remove(function (found) {
+                        return (found == token);
+                    }, function () {
+                    });
+                    res.status(400).json({error: 'invalid_grant'});
+                    return;
+                }
+                var access_token = randomstring.generate();
+                nosql.insert({access_token: access_token, client_id: clientId});
+                var token_response = {
+                    access_token: access_token,
+                    token_type: 'Bearer',
+                    refresh_token: token.refresh_token
+                };
+                res.status(200).json(token_response);
 
-        /*
-         * Respond to a refresh token request by issuing a new access token
-         */
+            } else {
+                console.log('No matching token was found.');
+                res.status(400).json({error: 'invalid_grant'});
 
+            }
+        });
     } else {
         console.log('Unknown grant type %s', req.body.grant_type);
         res.status(400).json({error: 'unsupported_grant_type'});
@@ -233,4 +258,4 @@ var server = app.listen(9001, 'localhost', function () {
 
     console.log('OAuth Authorization Server is listening at http://%s:%s', host, port);
 });
- 
+
