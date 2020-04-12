@@ -57,11 +57,11 @@ app.get("/authorize", function (req, res) {
     if (!client) {
         console.log('Unknown client %s', req.query.client_id);
         res.render('error', {error: 'Unknown client'});
-        return;
+
     } else if (!__.contains(client.redirect_uris, req.query.redirect_uri)) {
         console.log('Mismatched redirect URI, expected %s got %s', client.redirect_uris, req.query.redirect_uri);
         res.render('error', {error: 'Invalid redirect URI'});
-        return;
+
     } else {
 
         var rscope = req.query.scope ? req.query.scope.split(' ') : undefined;
@@ -79,7 +79,7 @@ app.get("/authorize", function (req, res) {
         requests[reqid] = req.query;
 
         res.render('approve', {client: client, reqid: reqid, scope: rscope});
-        return;
+
     }
 
 });
@@ -122,13 +122,33 @@ app.post('/approve', function (req, res) {
                 state: query.state
             });
             res.redirect(urlParsed);
-            return;
 
+        } else if (query.response_type == 'token') {
 
-            /*
-             * Implement response_type=token here
-              */
+            var rscope = getScopesFromForm(req.body);
+            var client = getClient(query.client_id);
+            var cscope = client.scope ? client.scope.split(' ') : undefined;
+            if (__.difference(rscope, cscope).length > 0) {
+                var urlParsed = buildUrl(query.redirect_uri,
+                    {},
+                    qs.stringify({error: 'invalid_scope'})
+                );
+                res.redirect(urlParsed);
+                return;
+            }
+            var access_token = randomstring.generate();
+            nosql.insert({access_token: access_token, client_id: client.client_id, scope: rscope});
 
+            var token_response = {access_token: access_token, token_type: 'Bearer', scope: rscope.join(' ')};
+            if (query.state) {
+                token_response.state = query.state;
+            }
+
+            var urlParsed = buildUrl(query.redirect_uri,
+                {},
+                qs.stringify(token_response)
+            );
+            res.redirect(urlParsed);
 
         } else {
             // we got a response type we don't understand
@@ -136,15 +156,16 @@ app.post('/approve', function (req, res) {
                 error: 'unsupported_response_type'
             });
             res.redirect(urlParsed);
-            return;
+
         }
+
     } else {
         // user denied access
         var urlParsed = buildUrl(query.redirect_uri, {
             error: 'access_denied'
         });
         res.redirect(urlParsed);
-        return;
+
     }
 
 });
@@ -179,19 +200,19 @@ app.post("/token", function (req, res) {
         return;
     }
 
-    if (client.client_secret != clientSecret) {
+    if (client.client_secret !== clientSecret) {
         console.log('Mismatched client secret, expected %s got %s', client.client_secret, clientSecret);
         res.status(401).json({error: 'invalid_client'});
         return;
     }
 
-    if (req.body.grant_type == 'authorization_code') {
+    if (req.body.grant_type === 'authorization_code') {
 
         var code = codes[req.body.code];
 
         if (code) {
             delete codes[req.body.code]; // burn our code, it's been used
-            if (code.request.client_id == clientId) {
+            if (code.request.client_id === clientId) {
 
                 var access_token = randomstring.generate();
                 var refresh_token = randomstring.generate();
@@ -211,20 +232,20 @@ app.post("/token", function (req, res) {
                 res.status(200).json(token_response);
                 console.log('Issued tokens for code %s', req.body.code);
 
-                return;
+
             } else {
                 console.log('Client mismatch, expected %s got %s', code.request.client_id, clientId);
                 res.status(400).json({error: 'invalid_grant'});
-                return;
+
             }
 
 
         } else {
             console.log('Unknown code, %s', req.body.code);
             res.status(400).json({error: 'invalid_grant'});
-            return;
+
         }
-    } else if (req.body.grant_type == 'refresh_token') {
+    } else if (req.body.grant_type === 'refresh_token') {
         nosql.one(function (token) {
             if (token.refresh_token == req.body.refresh_token) {
                 return token;
@@ -248,11 +269,11 @@ app.post("/token", function (req, res) {
                     refresh_token: token.refresh_token
                 };
                 res.status(200).json(token_response);
-                return;
+
             } else {
                 console.log('No matching token was found.');
                 res.status(400).json({error: 'invalid_grant'});
-                return;
+
             }
         });
     } else {
@@ -304,4 +325,4 @@ var server = app.listen(9001, 'localhost', function () {
 
     console.log('OAuth Authorization Server is listening at http://%s:%s', host, port);
 });
- 
+
