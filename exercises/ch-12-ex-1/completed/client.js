@@ -152,16 +152,16 @@ app.get('/fetch_resource', function (req, res) {
     if (resource.statusCode >= 200 && resource.statusCode < 300) {
         var body = JSON.parse(resource.getBody());
         res.render('data', {resource: body});
-        return;
+
     } else {
         access_token = null;
         if (refresh_token) {
             // try to refresh and start again
             refreshAccessToken(req, res);
-            return;
+
         } else {
             res.render('error', {error: 'Server returned response code: ' + resource.statusCode});
-            return;
+
         }
     }
 
@@ -189,7 +189,7 @@ var registerClient = function () {
         headers: headers
     });
 
-    if (regRes.statusCode == 201) {
+    if (regRes.statusCode === 201) {
         var body = JSON.parse(regRes.getBody());
         console.log("Got registered client", body);
         if (body.client_id) {
@@ -225,4 +225,4 @@ var server = app.listen(9000, 'localhost', function () {
     var port = server.address().port;
     console.log('OAuth Client is listening at http://%s:%s', host, port);
 });
- 
+

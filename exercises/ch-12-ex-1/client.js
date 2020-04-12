@@ -48,9 +48,13 @@ app.get('/', function (req, res) {
 
 app.get('/authorize', function (req, res) {
 
-    /*
-     * If the client hasn't been registered yet, call the registerClient function
-     */
+    if (!client.client_id) {
+        registerClient();
+        if (!client.client_id) {
+            res.render('error', {error: 'Unable to register client.'});
+            return;
+        }
+    }
 
     access_token = null;
     refresh_token = null;
@@ -148,16 +152,16 @@ app.get('/fetch_resource', function (req, res) {
     if (resource.statusCode >= 200 && resource.statusCode < 300) {
         var body = JSON.parse(resource.getBody());
         res.render('data', {resource: body});
-        return;
+
     } else {
         access_token = null;
         if (refresh_token) {
             // try to refresh and start again
             refreshAccessToken(req, res);
-            return;
+
         } else {
             res.render('error', {error: 'Server returned response code: ' + resource.statusCode});
-            return;
+
         }
     }
 
@@ -165,10 +169,33 @@ app.get('/fetch_resource', function (req, res) {
 
 var registerClient = function () {
 
-    /*
-     * Call the registration endpoint with your desired client information and save the results
-     */
+    var template = {
+        client_name: 'OAuth in Action Dynamic Test Client',
+        client_uri: 'http://localhost:9000/',
+        redirect_uris: ['http://localhost:9000/callback'],
+        grant_types: ['authorization_code'],
+        response_types: ['code'],
+        token_endpoint_auth_method: 'secret_basic',
+        scope: 'foo bar'
+    };
 
+    var headers = {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+    };
+
+    var regRes = request('POST', authServer.registrationEndpoint, {
+        body: JSON.stringify(template),
+        headers: headers
+    });
+
+    if (regRes.statusCode === 201) {
+        var body = JSON.parse(regRes.getBody());
+        console.log("Got registered client", body);
+        if (body.client_id) {
+            client = body;
+        }
+    }
 };
 
 app.use('/', express.static('files/client'));
@@ -198,4 +225,4 @@ var server = app.listen(9000, 'localhost', function () {
     var port = server.address().port;
     console.log('OAuth Client is listening at http://%s:%s', host, port);
 });
- 
+
