@@ -1,3 +1,5 @@
+# 这是OAuth 2 in Action的源码的一个fork。
+由于书中Node.js的版本比较老，在Node.js版本12下没有运行成功，所以部分修改了nosql的verison为6.1.0，更改了nosql的一些api
 # OAuth 2 in Action
 
 ![Cover of OAuth 2 in Action](https://images.manning.com/255/340/resize/book/e/14336f9-6493-46dc-938c-11a34c9d20ac/Richer-OAuth2-HI.png)
